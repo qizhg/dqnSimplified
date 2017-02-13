@@ -4,7 +4,7 @@ require "initenv" --'nn', 'nngraph', 'torch', 'image'
 --"arg" will be "self" of NeuralQLearner
 
 function create_network(args)
-   
+
     --convnet params
     args.n_units        = {32, 64, 64} --number of filers
     args.filter_size    = {8, 4, 3}
@@ -16,9 +16,9 @@ function create_network(args)
     net:add(nn.Reshape(unpack(args.input_dims))) --input_dims {self.hist_len, 84, 84}
 
     --first conv layer
-    net:add(nn.SpatialConvolution(self.hist_len, args.n_units[1], 
+    net:add(nn.SpatialConvolution(args.hist_len, args.n_units[1], 
     	                         args.filter_size[1], args.filter_size[1],
-    	                         args.filter_stride[1],args.filter_stride[1],
+    	                         args.filter_stride[1],args.filter_stride[1],1
     	                         ))
     net:add(args.nl())
 
@@ -26,7 +26,7 @@ function create_network(args)
     for i = 1, #args.n_units-1 do
     	net:add(nn.SpatialConvolution(args.n_units[i], args.n_units[i+1], 
     	                         args.filter_size[i+1], args.filter_size[i+1],
-    	                         args.filter_stride[i+1],args.filter_stride[i+1],
+    	                         args.filter_stride[i+1],args.filter_stride[i+1]
     	                         ))
     	net:add(args.nl())
     end
@@ -46,7 +46,9 @@ function create_network(args)
 
     --final layer: n_actions output
     net:add(nn.Linear(last_layer_size, args.n_actions))
+
+    return net
 end
 
-return create_network(args)
+return create_network
 
