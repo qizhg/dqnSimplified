@@ -148,4 +148,61 @@ function nql:Greedy(fullState)
 
     local r = torch.random(1,#besta)
     return besta[r] --with random tie-breaking
-end 
+end
+
+
+function nql:qLearnMinibatch()
+
+    local s,t,a,r,s_prime = self.replayMemory:sample(self.minibatch_size)
+    --s, s_prime (minibatch_size, hist_len x 84 x 84) is full state
+    --t, a, r (minibatch_size,)
+
+    local gradQ = self:get_gradQ(s,t,a,r,s_prime)  --gradQ (minibatch_size, n_actions)
+
+    local w, dw = self.network:getParameters()
+    dw:zero()
+    self.network:backward(s,gradQ)
+    self.dw:add(-self.wc, self.w) --L2 weight cost
+
+    --Perform Gradient Update
+       ------CODE HERE
+
+end
+
+function nql:get_gradQ(s,term,a,r,s_prime)
+--input:
+    --s, s_prime, (minibatch_size, hist_len x 84 x 84) minibatch of fullState
+    --t, a, r, (minibatch_size,)
+--output:
+    --gradQ (minibatch_size,n_actions)
+    --gradQ(s,action) = r + (1-termina) * gamma * max_a Q_target(s_prime, a) - Q(s, a), for action in a
+    --gradQ(s,action) = 0, for action not in a
+
+    local term_flip = term:clone():float():mul(-1):add(1) --terminal -> (1-termina)
+    local Q_target = self.target_network:forward(s_prime):clone():float() --Q_target (minibatch_size,n_actions)
+    local Q_target_max = Q_target:max(2)  --Q_target_max (minibatch_size,)
+
+
+    --delta = r + (1-termina) * gamma * max_a Q_target(s_prime, a) - Q(s, a)
+    local delta = r:clone():float() --delta = r
+    delta:add(Q_target_max:mul(self.discount):cmul(term_flip)) --delta += (1-termina) * gamma * max_a Q_target(s_prime, a)
+    local Q = self.target_network:forward(s):float()
+    for i=1,Q:size(1) do  --Q:size(1) = minibatch_size
+        delta[i] = delta[i] - Q[i][a[i]]
+    end
+
+
+    --clip_data
+       ------CODE HERE
+    
+
+    local gradQ = torch.zeros(self.minibatch_size, self.n_actions):float()
+    for i=1,Q:size(1) do  --Q:size(1) = minibatch_size
+        gradQ[i][a[i]] = delta[i]
+    end
+    return gradQ
+
+
+
+
+end
