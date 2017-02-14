@@ -9,11 +9,20 @@ ENV=$1
 FRAMEWORK="alewrap"
 game_path=$PWD"/roms/"
 env_params="useRGB=true"
+actrep=4 #we will repeat each action 4 times
+random_starts=30 #for every new episode, play null actions a random number of time [0,30]
+
 
 # Agent params for NeuralQLearner
 agent_name="NeuralQLearner"
 q_net="convnet_atari3"
 preproc_net="preproc_screen"
+
+
+
+# params for learning process
+steps=50000000 #total steps to go
+
 
 #agent="NeuralQLearner"
 #n_replay=1
@@ -45,7 +54,7 @@ preproc_net="preproc_screen"
 #num_threads=4
 
 #args="-framework $FRAMEWORK -game_path $game_path -name $agent_name -env $ENV -env_params $env_params -agent $agent -agent_params $agent_params -steps $steps -eval_freq $eval_freq -eval_steps $eval_steps -prog_freq $prog_freq -save_freq $save_freq -actrep $actrep -gpu $gpu -random_starts $random_starts -pool_frms $pool_frms -seed $seed -threads $num_threads"
-args="-env $ENV -framework $FRAMEWORK -game_path $game_path -env_params $env_params -agent_name $agent_name -q_net $q_net -preproc_net $preproc_net"
+args="-env $ENV -framework $FRAMEWORK -game_path $game_path -env_params $env_params -agent_name $agent_name -q_net $q_net -preproc_net $preproc_net -steps $steps"
 echo $args
 
 cd dqn
