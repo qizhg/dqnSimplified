@@ -7,5 +7,5 @@ require 'image'
 
 dqn = {}
 require 'NeuralQLearner' --dqn.NeuralQLearner
---require 'ReplayMemory' --dqn.ReplayMemory
+require 'ReplayMemory' --dqn.ReplayMemory
 

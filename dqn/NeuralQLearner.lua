@@ -14,7 +14,7 @@ function nql:__init(args)
 
     self.state_dim  = args.state_dim or 84*84 --size of screen after preproc
     self.hist_len   = args.hist_len or 4      --last 4 frames as a full_state
-    self.input_dims = args.input_dims or {self.hist_len, 84, 84} --input_dims to the Q_net
+    self.fullState_dims = args.fullState_dims or {self.hist_len, 84, 84} --fullState_dims to the Q_net
 
     self.actions    = args.actions
     self.n_actions  = #self.actions
@@ -60,6 +60,14 @@ function nql:__init(args)
     --delta (Q error) clipping
 
     --Replay memory
+    ReplayMemory_args ={
+        maxSize  = 1000000 --unit is stateDim, i.e. dim of a frame after preproc
+        histLen  = self.hist_len
+        stateDim = self.state_dim --84 x 84, frame size after preproc
+        fullStateDims =self.fullState_dims
+        numActions = self.n_actions
+    }
+    self.replayMemory  = dqn.ReplayMemory(ReplayMemory_args)
 
     --current number of steps
     self.step = 0
@@ -87,7 +95,7 @@ function nql:perceive(screen, reward, terminal)
 
     --get fullstate, i.e. hist_len number of states stacked
     self.replayMemory:add_recent_state(state,terminal)
-    local fullState = self.replayMemory:get_fullState()
+    local fullState = self.replayMemory:get_mostRecent_fullState()
 
     --select and action, no action index (index = 0) when terminal
     local actionIndex = 0
