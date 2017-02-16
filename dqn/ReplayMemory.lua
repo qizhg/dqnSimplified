@@ -21,9 +21,19 @@ function rplmem:__init(args)
     self.r = torch.zeros(self.maxSize)
     
 
-    --table for storing the last histLen states, used for constructing fullState more easily
+    --table for storing the last histLen states, used for constructing current fullState more easily
     self.recent_s = {} --table of ByteTensors
     self.recent_t = {}
+
+    --buffer for sampling fullState transitions
+    self.bufferSize = args.bufferSize or 1024
+    self.buf_a      = torch.LongTensor(self.bufferSize):fill(0)
+    self.buf_r      = torch.zeros(self.bufferSize)
+    self.buf_term   = torch.ByteTensor(self.bufferSize):fill(0)
+    self.buf_s      = torch.ByteTensor(self.bufferSize, self.histLen * self.stateDim):fill(0)
+    self.buf_s_prime= torch.ByteTensor(self.bufferSize, self.histLen * self.stateDim):fill(0)
+
+
 end
 
 function rplmem:reset()
@@ -82,8 +92,8 @@ function rplmem:add_recent_state(s,term)
     end
 end
 
-function rplmem:get_mostRecent_fullState()
-    local index, use_recent = 1, true --most recent
+function rplmem:get_current_fullState()
+    local index, use_recent = 1, true --current
     return self.stackStates(index, use_recent):float():div(255)
 end
 
@@ -122,4 +132,66 @@ end
 
 
 function rplmem:sample(batch_size)
+--sample batch_size transitions from the buffer
+    local batch_size = batch_size or 1
+    assert(batch_size < self.bufferSize)
+
+    if not self.buf_index or self.buf_index + batch_size -1 > self.bufferSize then
+        self:fill_buffer() --re-sample bufferSize fullState transitions into buffer
+    end
+
+    local index = self.buf_index
+    local range ={{index, index + batch_size -1}}
+    self.buf_index = self.buf_index + batch_size
+
+    local buf_s, buf_s_prime, buf_a, buf_r, buf_term = self.buf_s, self.buf_s_prime,
+        self.buf_a, self.buf_r, self.buf_term
+
+    return buf_s[range], buf_a[range], buf_r[range], buf_s_prime[range],buf_term[range] 
+end
+
+function rplmem:fill_buffer()
+    
+    assert(self.numEntries >= self.bufferSize)
+
+    --set self.buf_index
+    self.buf_index = 1
+
+    --sample bufferSize fullState transitions into buffer
+    for buf_index = 1, self.bufferSize do
+        local s, a, r, s_prime, term_prime = self.sample_one()
+        self.buf_s[buf_ind]:copy(s)
+        self.buf_a[buf_ind] = a
+        self.buf_r[buf_ind] = r
+        self.buf_s_prime[buf_ind]:copy(s_prime)
+        self.buf_term[buf_ind] = term_prime
+    end
+
+    --conver buf_s, buf_s_prime to floatTensor in range [0,1]
+    self.buf_s  = self.buf_s:float():div(255)
+    self.buf_s_prime = self.buf_s_prime:float():div(255)
+end
+
+function rplmem:sample_one()
+    assert(self.numEntries > 1) --??? >4
+    local index
+    local valid = false
+    while not valid do
+        -- start at 2 because of previous action ???
+        index = torch.random(2, self.numEntries-self.recentMemSize)
+        
+        if self.t[index+self.recentMemSize-1] == 0 then
+            valid = true --must be non-term state
+        end
+    end
+
+    return self:get_fullState_transition(index)
+end
+
+function rplmem:get_fullState_transition(index)
+    local s = self:stackStates(index,false)
+    local s_prime = self:stackStates(index+1,false)
+    local ar_index = index+self.recentMemSize-1
+
+    return s, self.a[ar_index], self.r[ar_index], s_prime, self.t[ar_index+1]
 end

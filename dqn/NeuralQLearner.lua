@@ -95,7 +95,7 @@ function nql:perceive(screen, reward, terminal)
 
     --get fullstate, i.e. hist_len number of states stacked
     self.replayMemory:add_recent_state(state,terminal)
-    local fullState = self.replayMemory:get_mostRecent_fullState()
+    local fullState = self.replayMemory:get_current_fullState()
 
     --select and action, no action index (index = 0) when terminal
     local actionIndex = 0
@@ -161,11 +161,11 @@ end
 
 function nql:qLearnMinibatch()
 
-    local s,t,a,r,s_prime = self.replayMemory:sample(self.minibatch_size)
-    --s, s_prime (minibatch_size, hist_len x 84 x 84) is full state
+    local s,a,r,s_prime,term_prime = self.replayMemory:sample(self.minibatch_size)
+    --s, s_prime (minibatch_size, hist_len x 84 x 84)  fullstate
     --t, a, r (minibatch_size,)
 
-    local gradQ = self:get_gradQ(s,t,a,r,s_prime)  --gradQ (minibatch_size, n_actions)
+    local gradQ = self:get_gradQ(s,a,r,s_prime,term_prime)  --gradQ (minibatch_size, n_actions)
 
     local w, dw = self.network:getParameters()
     dw:zero()
@@ -177,7 +177,7 @@ function nql:qLearnMinibatch()
 
 end
 
-function nql:get_gradQ(s,term,a,r,s_prime)
+function nql:get_gradQ(s,a,r,s_prime,term_prime)
 --input:
     --s, s_prime, (minibatch_size, hist_len x 84 x 84) minibatch of fullState
     --t, a, r, (minibatch_size,)
@@ -186,7 +186,7 @@ function nql:get_gradQ(s,term,a,r,s_prime)
     --gradQ(s,action) = r + (1-termina) * gamma * max_a Q_target(s_prime, a) - Q(s, a), for action in a
     --gradQ(s,action) = 0, for action not in a
 
-    local term_flip = term:clone():float():mul(-1):add(1) --terminal -> (1-termina)
+    local term_flip = term_prime:clone():float():mul(-1):add(1) --terminal -> (1-termina)
     local Q_target = self.target_network:forward(s_prime):clone():float() --Q_target (minibatch_size,n_actions)
     local Q_target_max = Q_target:max(2)  --Q_target_max (minibatch_size,)
 
@@ -209,8 +209,5 @@ function nql:get_gradQ(s,term,a,r,s_prime)
         gradQ[i][a[i]] = delta[i]
     end
     return gradQ
-
-
-
 
 end
