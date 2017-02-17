@@ -58,6 +58,18 @@ function nql:__init(args)
     self.min_reward    = args.min_reward or -1
 
     --delta (Q error) clipping
+    self.clip_delta     = args.clip_delta or 1
+
+    --For the variant of RMSprop
+    self.w, self.dw = self.network:getParameters()
+    self.dw:zero()
+
+    self.deltas = self.dw:clone():fill(0)
+    self.tmp= self.dw:clone():fill(0)
+    self.g  = self.dw:clone():fill(0)
+    self.g2 = self.dw:clone():fill(0)
+
+
 
     --Replay memory
     ReplayMemory_args ={
@@ -68,6 +80,8 @@ function nql:__init(args)
         numActions = self.n_actions
     }
     self.replayMemory  = dqn.ReplayMemory(ReplayMemory_args)
+
+
 
     --current number of steps
     self.step = 0
@@ -167,13 +181,26 @@ function nql:qLearnMinibatch()
 
     local gradQ = self:get_gradQ(s,a,r,s_prime,term_prime)  --gradQ (minibatch_size, n_actions)
 
-    local w, dw = self.network:getParameters()
-    dw:zero()
+    self.dw:zero()
     self.network:backward(s,gradQ)
     self.dw:add(-self.wc, self.w) --L2 weight cost
 
-    --Perform Gradient Update
-       ------CODE HERE
+    -- a variant of RMSprop
+    ----- beta = 0.95, epsilon = 0.01
+    ----- g = beta*g + (1-beta)dw
+    ----- g2 = beta*g2 + (1-beta)(dw * dw)
+    ----- dw = dw + lr * dw / sqrt(g2-g*g+epsilon)
+    self.g:mul(0.95):add(0.05, self.dw)
+    self.tmp:cmul(self.dw, self.dw)
+    self.g2:mul(0.95):add(0.05, self.tmp)
+    self.tmp:cmul(self.g, self.g)
+    self.tmp:mul(-1)
+    self.tmp:add(self.g2)
+    self.tmp:add(0.01)
+    self.tmp:sqrt()
+
+    self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
+    self.w:add(self.deltas)
 
 end
 
@@ -201,7 +228,10 @@ function nql:get_gradQ(s,a,r,s_prime,term_prime)
 
 
     --clip_data
-       ------CODE HERE
+    if self.clip_delta then
+        delta[delta:ge(self.clip_delta)] = self.clip_delta
+        delta[delta:le(-self.clip_delta)] = -self.clip_delta
+    end
     
 
     local gradQ = torch.zeros(self.minibatch_size, self.n_actions):float()
