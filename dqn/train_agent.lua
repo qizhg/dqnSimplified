@@ -15,7 +15,6 @@ cmd:text('Options:')
 cmd:option('-env', '', 'name of environment to use')
 cmd:option('-framework', '', 'name of training framework')
 cmd:option('-game_path', '', 'path to environment file (ROM)')
-cmd:option('-env_params', '', 'string of environment parameters')
 cmd:option('-actrep', 4, 'epeat each action 4 times')
 cmd:option('-random_starts', 30, 'for every new episode, play null actions a random number of time [0,30]')
 
@@ -50,14 +49,16 @@ local game_actions = game_env:getActions()
 args.actions = game_env:getActions()
 local agent = dqn[args.agent_name](args) --args.agent_name = "NeuralQLearner"
 
+
 --run steps
 local step = 0
 local screen, reward, terminal = game_env:getState()
 while step < args.steps do
 	step = step + 1
+	print(step)
 	local action_index = agent:perceive(screen, reward, terminal)
 
-	if not terminal
+	if not terminal then
 		screen, reward, terminal = game_env:step(game_actions[action_index],true) --true: training mode, losing a life = episode end = terminal 
 	else
 		if args.random_starts and args.random_starts>0 then
@@ -67,4 +68,3 @@ while step < args.steps do
 		end
 	end
 end
-

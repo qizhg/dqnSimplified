@@ -9,7 +9,7 @@ function rplmem:__init(args)
     self.maxSize = args.maxSize or 1024^2 --unit is stateDim, i.e. dim of a frame after preproc
     self.numEntries = 0 --curent size
     self.insertIndex = 0 --the index to add one more transition
-    self.histLen = args. histLen or ^4
+    self.histLen = args. histLen or 4
     self.stateDim = args.stateDim or 84*84 --84 x 84, frame size after preproc
     self.fullStateDims = args.fullStateDims  or {self.histLen, 84, 84}
     self.numActions = args.numActions
@@ -38,10 +38,11 @@ end
 
 function rplmem:reset()
     self.numEntries = 0
+    self.insertIndex = 0
 end
 
 function rplmem:size()
-    return self.numEntries = 0
+    return self.numEntries
 end
 
 
@@ -57,7 +58,7 @@ function rplmem:add(s,term,a,r)
         self.insertIndex = 1
     end
 
-    self.s[self.insertIndex] = s:clone():view(x:nElement()):float():mul(255):byte()
+    self.s[self.insertIndex] = s:clone():view(s:nElement()):float():mul(255):byte()
     if term then 
         self.t[self.insertIndex] = 1
     else
@@ -69,11 +70,11 @@ end
 
 function rplmem:add_recent_state(s,term)
 
-    local s = s:clone():view(x:nElement()):float():mul(255):byte()
+    local s = s:clone():view(s:nElement()):float():mul(255):byte()
     
     if #self.recent_s == 0 then --first call, #self.recent_t ==0
         for i = 1, self.histLen do
-            table.insert(self.recent_s, s:clone:zero()) --init with zero
+            table.insert(self.recent_s, s:clone():zero()) --init with zero
             table.insert(self.recent_t, 1)  --init with term = 1
         end
     end
@@ -94,19 +95,22 @@ end
 
 function rplmem:get_current_fullState()
     local index, use_recent = 1, true --current
-    return self.stackStates(index, use_recent):float():div(255)
+    return self:stackStates(index, use_recent):float():div(255)
 end
 
 
 function rplmem:stackStates(index, use_recent)
-    local s,t
+    local states
+    local terminals
     if use_recent then
-        s, t = self.recent_s, self.recent_t
+        states = self.recent_s
+        terminals = self.recent_t
     else
-        s, t = self.s, self,t
+        states = self.s
+        terminals = self.t
     end
 
-    local fullState = s[1].new() -- same type tensor of s[1] with no dimenstion
+    local fullState = states[1].new() -- same type tensor of s[1] with no dimenstion
     fullState:resize(unpack(self.fullStateDims)):zero()   --(self.histLen, 84, 84)
 
     --stack index, index + 1,..., index + histLen -1 frames in s, within the same episode
@@ -114,7 +118,7 @@ function rplmem:stackStates(index, use_recent)
     
     for i=self.histLen-1,1,-1 do
         
-        if t[index + i -1] = 1 then
+        if terminals[index + i -1] == 1 then
             break
         end
 
@@ -123,7 +127,7 @@ function rplmem:stackStates(index, use_recent)
 
     -- Copy frames from the current episode.
     for i=episode_start,self.histLen do
-        fullstate[i] = s[index+i-1]:clone():view(self.fullStateDims[2],self.fullStateDims[3])
+        fullState[i] = states[index+i-1]:clone():view(self.fullStateDims[2],self.fullStateDims[3])
     end
 
     return fullState

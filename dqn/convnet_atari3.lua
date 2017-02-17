@@ -13,7 +13,7 @@ function create_network(args)
     args.nl             = nn.ReLU
 
     local net = nn.Sequential()
-    net:add(nn.Reshape(unpack(args.input_dims))) --input_dims {self.hist_len, 84, 84}
+    net:add(nn.Reshape(unpack(args.fullState_dims))) --input_dims {self.hist_len, 84, 84}
 
     --first conv layer
     net:add(nn.SpatialConvolution(args.hist_len, args.n_units[1], 
@@ -31,7 +31,7 @@ function create_network(args)
     	net:add(args.nl())
     end
 
-    local nel = net:forward( torch.zeros(1, unpack(args.input_dims)) ):nElement()
+    local nel = net:forward( torch.zeros(1, unpack(args.fullState_dims)) ):nElement()
 
     --add fc layers
     net:add(nn.Reshape(nel))

@@ -28,7 +28,7 @@ function nql:__init(args)
     self.preproc = self:preproc()
 
     --epsilon(-greedy) annealing from ep_start to ep_end in ep_endt steps
-    self.ep_start = args.ep_start or 1
+    self.ep_start = args.ep_start or 1.0
     self.ep_end   = args.ep_end or 0.1
     self.ep_endt  = args.ep_endt or 1000000
     self.ep       = self.ep_start
@@ -44,7 +44,7 @@ function nql:__init(args)
 
     --Q-learning update frequency, update every update_freq steps, use minibatch_size transitions to do n_replay times weight gradient descent in each update 
     self.discount       = args.discount or 0.99 --discount factor, gamma
-    self.learn_start    = args.discount or 50000
+    self.learn_start    = args.learn_start or 50000
     self.update_freq    = args.update_freq or 4
     self.minibatch_size = args.minibatch_size or 32
     self.n_replay       = args.n_replay or 1
@@ -73,10 +73,10 @@ function nql:__init(args)
 
     --Replay memory
     ReplayMemory_args ={
-        maxSize  = 1000000 --unit is stateDim, i.e. dim of a frame after preproc
-        histLen  = self.hist_len
-        stateDim = self.state_dim --84 x 84, frame size after preproc
-        fullStateDims =self.fullState_dims
+        maxSize  = 1000000, --unit is stateDim, i.e. dim of a frame after preproc
+        histLen  = self.hist_len,
+        stateDim = self.state_dim, --84 x 84, frame size after preproc
+        fullStateDims =self.fullState_dims,
         numActions = self.n_actions
     }
     self.replayMemory  = dqn.ReplayMemory(ReplayMemory_args)
@@ -114,19 +114,19 @@ function nql:perceive(screen, reward, terminal)
     --select and action, no action index (index = 0) when terminal
     local actionIndex = 0
     if not terminal then
-        actionIndex = self.eGreedy(fullState)
+        actionIndex = self:eGreedy(fullState)
     end
     -----self.replayMemory:add_recent_action(actionIndex) --???? why do we need recent_action
 
     --Q updates, after learn_start steps update every update_freq steps, use minibatch_size transitions to do n_replay times weight gradient descent in each update 
     if self.step >= self.learn_start and self.step % self.update_freq==0 then
-        for i = 1, self.n_replay
+        for i = 1, self.n_replay do
             self:qLearnMinibatch()
         end
     end
 
     --target Q updates
-    if self.target_q and self.steps % self.target_q == 0 then
+    if self.target_q and self.step % self.target_q == 0 then
         self.target_network = self.network:clone()
     end 
 
@@ -140,9 +140,7 @@ function nql:perceive(screen, reward, terminal)
 end
 
 function nql:eGreedy(fullState)
-    self.ep =(self.ep_end +
-                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
+    self.ep = self.ep_end + math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt - math.max(0, self.step - self.learn_start))/self.ep_endt)
     if torch.uniform() < self.ep then
         return torch.random(1, self.n_actions)
     else
